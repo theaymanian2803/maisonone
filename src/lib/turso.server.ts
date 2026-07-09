@@ -21,7 +21,7 @@ export function getDb(): Client {
   const authToken = process.env.TURSO_AUTH_TOKEN;
   if (!url) {
     throw new Error(
-      "TURSO_DATABASE_URL is not set. Add it via Lovable secrets to enable the database.",
+      "TURSO_DATABASE_URL is not set. Set it in your environment to enable the database.",
     );
   }
   cached = createClient({ url, authToken });
