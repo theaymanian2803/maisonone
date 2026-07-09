@@ -14,6 +14,7 @@ import { Route as SearchRouteImport } from './routes/search'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as JournalRouteImport } from './routes/journal'
+import { Route as DebugEnvRouteImport } from './routes/debug-env'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as CartRouteImport } from './routes/cart'
@@ -49,6 +50,11 @@ const LoginRoute = LoginRouteImport.update({
 const JournalRoute = JournalRouteImport.update({
   id: '/journal',
   path: '/journal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DebugEnvRoute = DebugEnvRouteImport.update({
+  id: '/debug-env',
+  path: '/debug-env',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContactRoute = ContactRouteImport.update({
@@ -115,6 +121,7 @@ export interface FileRoutesByFullPath {
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
   '/contact': typeof ContactRoute
+  '/debug-env': typeof DebugEnvRoute
   '/journal': typeof JournalRouteWithChildren
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
@@ -133,6 +140,7 @@ export interface FileRoutesByTo {
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
   '/contact': typeof ContactRoute
+  '/debug-env': typeof DebugEnvRoute
   '/journal': typeof JournalRouteWithChildren
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
@@ -152,6 +160,7 @@ export interface FileRoutesById {
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
   '/contact': typeof ContactRoute
+  '/debug-env': typeof DebugEnvRoute
   '/journal': typeof JournalRouteWithChildren
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
@@ -172,6 +181,7 @@ export interface FileRouteTypes {
     | '/cart'
     | '/checkout'
     | '/contact'
+    | '/debug-env'
     | '/journal'
     | '/login'
     | '/register'
@@ -190,6 +200,7 @@ export interface FileRouteTypes {
     | '/cart'
     | '/checkout'
     | '/contact'
+    | '/debug-env'
     | '/journal'
     | '/login'
     | '/register'
@@ -208,6 +219,7 @@ export interface FileRouteTypes {
     | '/cart'
     | '/checkout'
     | '/contact'
+    | '/debug-env'
     | '/journal'
     | '/login'
     | '/register'
@@ -227,6 +239,7 @@ export interface RootRouteChildren {
   CartRoute: typeof CartRoute
   CheckoutRoute: typeof CheckoutRoute
   ContactRoute: typeof ContactRoute
+  DebugEnvRoute: typeof DebugEnvRoute
   JournalRoute: typeof JournalRouteWithChildren
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
@@ -272,6 +285,13 @@ declare module '@tanstack/react-router' {
       path: '/journal'
       fullPath: '/journal'
       preLoaderRoute: typeof JournalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/debug-env': {
+      id: '/debug-env'
+      path: '/debug-env'
+      fullPath: '/debug-env'
+      preLoaderRoute: typeof DebugEnvRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contact': {
@@ -373,6 +393,7 @@ const rootRouteChildren: RootRouteChildren = {
   CartRoute: CartRoute,
   CheckoutRoute: CheckoutRoute,
   ContactRoute: ContactRoute,
+  DebugEnvRoute: DebugEnvRoute,
   JournalRoute: JournalRouteWithChildren,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
