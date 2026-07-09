@@ -7,7 +7,7 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   plugins: [
     tanstackStart(),
-    nitro({ defaultPreset: "cloudflare-module" }),
+    nitro({ defaultPreset: "cloudflare-pages" }),
     tailwindcss(),
     viteReact(),
   ],
