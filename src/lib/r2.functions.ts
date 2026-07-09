@@ -1,12 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+function env<T extends string>(key: string): T | undefined {
+  const cfEnv = (globalThis as Record<string, Record<string, string> | undefined>).__env__;
+  return ((cfEnv?.[key] ?? process.env[key]) as T | undefined);
+}
+
 export function r2Configured(): boolean {
   return Boolean(
-    process.env.R2_ACCOUNT_ID &&
-    process.env.R2_BUCKET_NAME &&
-    process.env.R2_ACCESS_KEY_ID &&
-    process.env.R2_SECRET_ACCESS_KEY,
+    env<string>("R2_ACCOUNT_ID") &&
+    env<string>("R2_BUCKET_NAME") &&
+    env<string>("R2_ACCESS_KEY_ID") &&
+    env<string>("R2_SECRET_ACCESS_KEY"),
   );
 }
 
@@ -18,11 +23,11 @@ export const getR2UploadUrl = createServerFn({ method: "POST" })
     const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
     const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
 
-    const accountId = process.env.R2_ACCOUNT_ID!;
-    const bucket = process.env.R2_BUCKET_NAME!;
-    const accessKey = process.env.R2_ACCESS_KEY_ID!;
-    const secretKey = process.env.R2_SECRET_ACCESS_KEY!;
-    const publicDomain = process.env.R2_PUBLIC_DOMAIN!;
+    const accountId = env<string>("R2_ACCOUNT_ID")!;
+    const bucket = env<string>("R2_BUCKET_NAME")!;
+    const accessKey = env<string>("R2_ACCESS_KEY_ID")!;
+    const secretKey = env<string>("R2_SECRET_ACCESS_KEY")!;
+    const publicDomain = env<string>("R2_PUBLIC_DOMAIN")!;
 
     const s3 = new S3Client({
       region: "auto",

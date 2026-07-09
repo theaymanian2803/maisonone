@@ -3,22 +3,28 @@ import { createClient, type Client } from "@libsql/client";
 /**
  * Turso / libSQL client. Server-only.
  *
- * Reads TURSO_DATABASE_URL and TURSO_AUTH_TOKEN from process.env inside
- * getDb() so envs injected at request time by the Worker runtime resolve
- * correctly.
+ * Reads TURSO_DATABASE_URL and TURSO_AUTH_TOKEN from the runtime
+ * environment. On Cloudflare Workers/Pages, env bindings are exposed
+ * via `globalThis.__env__` (set by Nitro's cloudflare preset) and are
+ * NOT in `process.env`, so we check both.
  */
 
 let cached: Client | null = null;
 let schemaReady = false;
 
+function env<T extends string>(key: string): T | undefined {
+  const cfEnv = (globalThis as Record<string, Record<string, string> | undefined>).__env__;
+  return ((cfEnv?.[key] ?? process.env[key]) as T | undefined);
+}
+
 export function tursoConfigured(): boolean {
-  return Boolean(process.env.TURSO_DATABASE_URL);
+  return Boolean(env<string>("TURSO_DATABASE_URL"));
 }
 
 export function getDb(): Client {
   if (cached) return cached;
-  const url = process.env.TURSO_DATABASE_URL;
-  const authToken = process.env.TURSO_AUTH_TOKEN;
+  const url = env<string>("TURSO_DATABASE_URL");
+  const authToken = env<string>("TURSO_AUTH_TOKEN");
   if (!url) {
     throw new Error(
       "TURSO_DATABASE_URL is not set. Set it in your environment to enable the database.",
@@ -139,6 +145,6 @@ export async function ensureSchema(): Promise<void> {
 
 /** Verify admin password. */
 export function verifyAdminToken(token: string | undefined | null): boolean {
-  const expected = process.env.ADMIN_TOKEN ?? "111222";
+  const expected = env<string>("ADMIN_TOKEN") ?? "111222";
   return token === expected;
 }
