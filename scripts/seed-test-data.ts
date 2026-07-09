@@ -2,6 +2,10 @@ import { createClient } from "@libsql/client";
 
 const url = process.env.TURSO_DATABASE_URL!;
 const authToken = process.env.TURSO_AUTH_TOKEN!;
+if (!url) {
+  console.error("TURSO_DATABASE_URL is not set. Create a .env file with your Turso credentials.");
+  process.exit(1);
+}
 const db = createClient({ url, authToken });
 
 function uuid() {
