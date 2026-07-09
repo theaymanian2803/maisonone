@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /order/
+
+Sitemap: https://maison.co/sitemap.xml
