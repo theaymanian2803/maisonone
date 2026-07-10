@@ -7,7 +7,7 @@
   "scripts": {
     "prebuild": "node -e \"require('fs').rmSync('node_modules/.vite-temp',{recursive:true,force:true})\"",
     "dev": "vite dev",
-    "build": "vite build && node scripts/patch-cf-env.mjs",
+    "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "seed:test": "bun run scripts/seed-test-data.ts",

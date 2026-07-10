@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { submitContactMessage } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/contact")({
   head: () => ({
@@ -34,13 +35,20 @@ function ContactPage() {
       return;
     }
     setSending(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    toast.success("Message envoyé ! Nous vous répondrons sous 24 heures.");
-    setName("");
-    setEmail("");
-    setSubject("");
-    setMessage("");
-    setSending(false);
+    try {
+      await submitContactMessage({
+        data: { name, email, subject, message },
+      });
+      toast.success("Message envoyé ! Nous vous répondrons sous 24 heures.");
+      setName("");
+      setEmail("");
+      setSubject("");
+      setMessage("");
+    } catch {
+      toast.error("Erreur lors de l'envoi. Veuillez réessayer.");
+    } finally {
+      setSending(false);
+    }
   }
 
   return (

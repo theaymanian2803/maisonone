@@ -3,18 +3,14 @@ import { createClient, type Client } from "@libsql/client";
 /**
  * Turso / libSQL client. Server-only.
  *
- * Reads TURSO_DATABASE_URL and TURSO_AUTH_TOKEN from the runtime
- * environment. On Cloudflare Workers/Pages, env bindings are exposed
- * via `globalThis.__env__` (set by Nitro's cloudflare preset) and are
- * NOT in `process.env`, so we check both.
+ * Reads TURSO_DATABASE_URL and TURSO_AUTH_TOKEN from process.env.
  */
 
 let cached: Client | null = null;
 let schemaReady = false;
 
 function env<T extends string>(key: string): T | undefined {
-  const cfEnv = (globalThis as Record<string, Record<string, string> | undefined>).__env__;
-  return ((cfEnv?.[key] ?? process.env[key]) as T | undefined);
+  return process.env[key] as T | undefined;
 }
 
 export function tursoConfigured(): boolean {
@@ -127,6 +123,17 @@ export async function ensureSchema(): Promise<void> {
        )`,
       `CREATE INDEX IF NOT EXISTS idx_reviews_product ON reviews(product_id)`,
       `CREATE INDEX IF NOT EXISTS idx_reviews_customer ON reviews(customer_id)`,
+      `CREATE TABLE IF NOT EXISTS messages (
+         id TEXT PRIMARY KEY,
+         name TEXT NOT NULL,
+         email TEXT NOT NULL,
+         subject TEXT NOT NULL DEFAULT '',
+         message TEXT NOT NULL,
+         read INTEGER NOT NULL DEFAULT 0,
+         created_at INTEGER NOT NULL DEFAULT (unixepoch())
+       )`,
+      `CREATE INDEX IF NOT EXISTS idx_messages_read ON messages(read)`,
+      `CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at)`,
     ],
     "write",
   );

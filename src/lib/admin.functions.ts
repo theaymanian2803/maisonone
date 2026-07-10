@@ -6,6 +6,7 @@ import {
   CATEGORY_LABEL,
   type BlogPost,
   type Category,
+  type ContactMessage,
   type Order,
   type OrderItem,
   type OrderStatus,
@@ -68,7 +69,7 @@ function parseGallery(val: unknown): string[] {
 }
 
 function randomId(): string {
-  // Crypto is available in the Worker runtime.
+  // Crypto is available in the server runtime.
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
@@ -562,6 +563,78 @@ export const adminDeleteReview = createServerFn({ method: "POST" })
     await ensureSchema();
     await getDb().execute({
       sql: "DELETE FROM reviews WHERE id = ?",
+      args: [data.id],
+    });
+    return { ok: true };
+  });
+
+/* ---------------- Contact Messages ---------------- */
+
+export const submitContactMessage = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    z
+      .object({
+        name: z.string().trim().min(1).max(200),
+        email: z.string().trim().email().max(255),
+        subject: z.string().trim().max(200).default(""),
+        message: z.string().trim().min(1).max(5000),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }): Promise<{ id: string }> => {
+    const { getDb, ensureSchema } = await import("./turso.server");
+    await ensureSchema();
+    const id = randomId();
+    await getDb().execute({
+      sql: `INSERT INTO messages (id, name, email, subject, message) VALUES (?, ?, ?, ?, ?)`,
+      args: [id, data.name, data.email, data.subject, data.message],
+    });
+    return { id };
+  });
+
+export const adminListMessages = createServerFn({ method: "POST" })
+  .validator((input: { token: string }) => z.object({ token: z.string().min(1) }).parse(input))
+  .handler(async ({ data }): Promise<ContactMessage[]> => {
+    const { verifyAdminToken, tursoConfigured, getDb, ensureSchema } =
+      await import("./turso.server");
+    if (!verifyAdminToken(data.token)) unauthorized();
+    if (!tursoConfigured()) return [];
+    await ensureSchema();
+    const res = await getDb().execute(
+      "SELECT id, name, email, subject, message, read, created_at FROM messages ORDER BY created_at DESC",
+    );
+    return res.rows.map((r) => ({
+      id: String(r.id),
+      name: String(r.name),
+      email: String(r.email),
+      subject: String(r.subject),
+      message: String(r.message),
+      read: Boolean(r.read),
+      created_at: Number(r.created_at),
+    }));
+  });
+
+export const adminMarkMessageRead = createServerFn({ method: "POST" })
+  .validator((input: unknown) => idWithTokenSchema.parse(input))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { verifyAdminToken, getDb, ensureSchema } = await import("./turso.server");
+    if (!verifyAdminToken(data.token)) unauthorized();
+    await ensureSchema();
+    await getDb().execute({
+      sql: "UPDATE messages SET read = 1 WHERE id = ?",
+      args: [data.id],
+    });
+    return { ok: true };
+  });
+
+export const adminDeleteMessage = createServerFn({ method: "POST" })
+  .validator((input: unknown) => idWithTokenSchema.parse(input))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { verifyAdminToken, getDb, ensureSchema } = await import("./turso.server");
+    if (!verifyAdminToken(data.token)) unauthorized();
+    await ensureSchema();
+    await getDb().execute({
+      sql: "DELETE FROM messages WHERE id = ?",
       args: [data.id],
     });
     return { ok: true };

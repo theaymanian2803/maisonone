@@ -2,8 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 function env<T extends string>(key: string): T | undefined {
-  const cfEnv = (globalThis as Record<string, Record<string, string> | undefined>).__env__;
-  return ((cfEnv?.[key] ?? process.env[key]) as T | undefined);
+  return process.env[key] as T | undefined;
 }
 
 export function r2Configured(): boolean {

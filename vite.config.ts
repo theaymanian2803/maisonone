@@ -10,7 +10,7 @@ const { nitro } = require("nitro/vite");
 export default defineConfig({
   plugins: [
     tanstackStart(),
-    nitro({ defaultPreset: "cloudflare-pages" }),
+    nitro({ defaultPreset: "vercel" }),
     tailwindcss(),
     viteReact(),
   ],

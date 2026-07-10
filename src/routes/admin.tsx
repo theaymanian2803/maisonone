@@ -8,9 +8,9 @@ import {
   LogOut,
   RefreshCw,
   Star,
-  MessageSquare,
   CheckCircle,
   Link2,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { R2ImageUpload } from "@/components/admin/R2ImageUpload";
@@ -28,6 +28,16 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
+import {
   adminListProducts,
   adminListBlogPosts,
   adminListCategories,
@@ -44,6 +54,9 @@ import {
   updateCategory,
   deleteCategory,
   verifyAdmin,
+  adminListMessages,
+  adminDeleteMessage,
+  adminMarkMessageRead,
 } from "@/lib/admin.functions";
 import { getCategories } from "@/lib/catalog.functions";
 import { OrdersPanel } from "@/components/admin/OrdersPanel";
@@ -51,12 +64,58 @@ import {
   CATEGORY_LABEL,
   type BlogPost,
   type Category,
+  type ContactMessage,
   type Product,
   type ProductCategory,
   type Review,
 } from "@/lib/catalog.types";
 
 const TOKEN_KEY = "maison_admin_token";
+
+function ConfirmDeleteDialog({
+  open,
+  title,
+  description,
+  loading,
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean;
+  title: string;
+  description?: string;
+  loading?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <AlertDialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) onCancel();
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          {description && <AlertDialogDescription>{description}</AlertDialogDescription>}
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={loading}>Annuler</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => {
+              e.preventDefault();
+              onConfirm();
+            }}
+            disabled={loading}
+            className="bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90"
+          >
+            {loading ? "Suppression…" : "Supprimer"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -147,6 +206,16 @@ function AdminDashboard({ token, onLogout }: { token: string; onLogout: () => vo
   });
   const pendingCount = pendingCountQuery.data ?? 0;
 
+  const unreadMessagesQuery = useQuery({
+    queryKey: ["admin", "messages", "unread-count"],
+    queryFn: async () => {
+      const messages = await adminListMessages({ data: { token } });
+      return messages.filter((m) => !m.read).length;
+    },
+    refetchInterval: 15_000,
+  });
+  const unreadCount = unreadMessagesQuery.data ?? 0;
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-[var(--brand-hairline)]">
@@ -174,6 +243,14 @@ function AdminDashboard({ token, onLogout }: { token: string; onLogout: () => vo
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="messages" className="relative">
+              Messages
+              {unreadCount > 0 && (
+                <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-500 px-1.5 text-[10px] font-bold text-white">
+                  {unreadCount}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="blog">Blog</TabsTrigger>
           </TabsList>
           <TabsContent value="orders" className="mt-8">
@@ -187,6 +264,9 @@ function AdminDashboard({ token, onLogout }: { token: string; onLogout: () => vo
           </TabsContent>
           <TabsContent value="reviews" className="mt-8">
             <ReviewsPanel token={token} />
+          </TabsContent>
+          <TabsContent value="messages" className="mt-8">
+            <MessagesPanel token={token} />
           </TabsContent>
           <TabsContent value="blog" className="mt-8">
             <BlogPanel token={token} />
@@ -292,6 +372,7 @@ function ProductsPanel({ token }: { token: string }) {
   const [form, setForm] = useState<ProductForm>(emptyProductForm);
   const [error, setError] = useState<string | null>(null);
   const [showUrlInput, setShowUrlInput] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
 
   const productsQuery = useQuery({
     queryKey: ["admin", "products"],
@@ -331,15 +412,6 @@ function ProductsPanel({ token }: { token: string }) {
     onError: (e: Error) => toast.error(e.message || "Échec de la mise à jour"),
   });
 
-  const deleteMut = useMutation({
-    mutationFn: (id: string) => deleteProduct({ data: { token, id } }),
-    onSuccess: () => {
-      toast.success("Produit supprimé");
-      qc.invalidateQueries({ queryKey: ["admin", "products"] });
-    },
-    onError: (e: Error) => toast.error(e.message || "Échec de la suppression"),
-  });
-
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -354,6 +426,16 @@ function ProductsPanel({ token }: { token: string }) {
       createMut.mutate(parsed.value);
     }
   }
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteProduct({ data: { token, id } }),
+    onSuccess: () => {
+      toast.success("Produit supprimé");
+      setPendingDelete(null);
+      qc.invalidateQueries({ queryKey: ["admin", "products"] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Échec de la suppression"),
+  });
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
@@ -442,9 +524,7 @@ function ProductsPanel({ token }: { token: string }) {
                       <Button
                         size="icon"
                         variant="ghost"
-                        onClick={() => {
-                          if (confirm(`Supprimer "${p.title}" ?`)) deleteMut.mutate(p.id);
-                        }}
+                        onClick={() => setPendingDelete({ id: p.id, title: p.title })}
                         aria-label="Supprimer"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -613,6 +693,17 @@ function ProductsPanel({ token }: { token: string }) {
           </Button>
         </form>
       </aside>
+
+      <ConfirmDeleteDialog
+        open={pendingDelete !== null}
+        title={`Supprimer "${pendingDelete?.title ?? ""}" ?`}
+        description="Cette action est irréversible."
+        loading={deleteMut.isPending}
+        onConfirm={() => {
+          if (pendingDelete) deleteMut.mutate(pendingDelete.id);
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }
@@ -625,6 +716,7 @@ function CategoriesPanel({ token }: { token: string }) {
   const [slug, setSlug] = useState("");
   const [label, setLabel] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ slug: string; label: string } | null>(null);
 
   const categoriesQuery = useQuery({
     queryKey: ["admin", "categories"],
@@ -670,6 +762,7 @@ function CategoriesPanel({ token }: { token: string }) {
     mutationFn: (slug: string) => deleteCategory({ data: { token, slug } }),
     onSuccess: () => {
       toast.success("Catégorie supprimée");
+      setPendingDelete(null);
       qc.invalidateQueries({ queryKey: ["admin", "categories"] });
     },
     onError: (e: Error) => toast.error(e.message || "Échec de la suppression"),
@@ -754,9 +847,7 @@ function CategoriesPanel({ token }: { token: string }) {
                       <Button
                         size="icon"
                         variant="ghost"
-                        onClick={() => {
-                          if (confirm(`Supprimer "${c.label}" ?`)) deleteMut.mutate(c.slug);
-                        }}
+                        onClick={() => setPendingDelete({ slug: c.slug, label: c.label })}
                         aria-label="Supprimer"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -830,6 +921,17 @@ function CategoriesPanel({ token }: { token: string }) {
           </Button>
         </form>
       </aside>
+
+      <ConfirmDeleteDialog
+        open={pendingDelete !== null}
+        title={`Supprimer "${pendingDelete?.label ?? ""}" ?`}
+        description="Cette action est irréversible."
+        loading={deleteMut.isPending}
+        onConfirm={() => {
+          if (pendingDelete) deleteMut.mutate(pendingDelete.slug);
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }
@@ -865,6 +967,7 @@ function BlogPanel({ token }: { token: string }) {
   const [form, setForm] = useState<BlogForm>(emptyBlogForm);
   const [error, setError] = useState<string | null>(null);
   const [showUrlInput, setShowUrlInput] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
 
   const postsQuery = useQuery({
     queryKey: ["admin", "blog"],
@@ -908,6 +1011,7 @@ function BlogPanel({ token }: { token: string }) {
     mutationFn: (id: string) => deleteBlogPost({ data: { token, id } }),
     onSuccess: () => {
       toast.success("Article supprimé");
+      setPendingDelete(null);
       qc.invalidateQueries({ queryKey: ["admin", "blog"] });
     },
     onError: (e: Error) => toast.error(e.message || "Échec de la suppression"),
@@ -988,9 +1092,7 @@ function BlogPanel({ token }: { token: string }) {
                       <Button
                         size="icon"
                         variant="ghost"
-                        onClick={() => {
-                          if (confirm(`Supprimer "${a.title}" ?`)) deleteMut.mutate(a.id);
-                        }}
+                        onClick={() => setPendingDelete({ id: a.id, title: a.title })}
                         aria-label="Supprimer"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -1102,6 +1204,17 @@ function BlogPanel({ token }: { token: string }) {
           </Button>
         </form>
       </aside>
+
+      <ConfirmDeleteDialog
+        open={pendingDelete !== null}
+        title={`Supprimer "${pendingDelete?.title ?? ""}" ?`}
+        description="Cette action est irréversible."
+        loading={deleteMut.isPending}
+        onConfirm={() => {
+          if (pendingDelete) deleteMut.mutate(pendingDelete.id);
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }
@@ -1118,6 +1231,7 @@ function formatDate(unix: number): string {
 
 function ReviewsPanel({ token }: { token: string }) {
   const qc = useQueryClient();
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const reviewsQuery = useQuery({
     queryKey: ["admin", "reviews"],
@@ -1137,6 +1251,7 @@ function ReviewsPanel({ token }: { token: string }) {
     mutationFn: (id: string) => adminDeleteReview({ data: { token, id } }),
     onSuccess: () => {
       toast.success("Avis supprimé");
+      setPendingDelete(null);
       qc.invalidateQueries({ queryKey: ["admin", "reviews"] });
     },
     onError: (e: Error) => toast.error(e.message || "Échec de la suppression"),
@@ -1246,9 +1361,7 @@ function ReviewsPanel({ token }: { token: string }) {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => {
-                        if (confirm("Supprimer cet avis ?")) deleteMut.mutate(r.id);
-                      }}
+                      onClick={() => setPendingDelete(r.id)}
                       aria-label="Supprimer"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -1260,6 +1373,246 @@ function ReviewsPanel({ token }: { token: string }) {
           </tbody>
         </table>
       </div>
+
+      <ConfirmDeleteDialog
+        open={pendingDelete !== null}
+        title="Supprimer cet avis ?"
+        description="Cette action est irréversible."
+        loading={deleteMut.isPending}
+        onConfirm={() => {
+          if (pendingDelete) deleteMut.mutate(pendingDelete);
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
+    </div>
+  );
+}
+
+/* ---------------- Messages ---------------- */
+
+function MessagesPanel({ token }: { token: string }) {
+  const qc = useQueryClient();
+  const [selectedMessage, setSelectedMessage] = useState<ContactMessage | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
+
+  const messagesQuery = useQuery({
+    queryKey: ["admin", "messages"],
+    queryFn: () => adminListMessages({ data: { token } }),
+  });
+
+  const markReadMut = useMutation({
+    mutationFn: (id: string) => adminMarkMessageRead({ data: { token, id } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "messages"] });
+    },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => adminDeleteMessage({ data: { token, id } }),
+    onSuccess: () => {
+      toast.success("Message supprimé");
+      setPendingDelete(null);
+      setSelectedMessage(null);
+      qc.invalidateQueries({ queryKey: ["admin", "messages"] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Échec de la suppression"),
+  });
+
+  function handleMessageClick(msg: ContactMessage) {
+    setSelectedMessage(msg);
+    if (!msg.read) {
+      markReadMut.mutate(msg.id);
+    }
+  }
+
+  const unreadCount = messagesQuery.data?.filter((m) => !m.read).length ?? 0;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-semibold">
+          Messages
+          {unreadCount > 0 && (
+            <span className="ml-2 text-sm font-normal text-muted-foreground">
+              ({unreadCount} non lu{unreadCount > 1 ? "s" : ""})
+            </span>
+          )}
+        </h2>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => messagesQuery.refetch()}
+          disabled={messagesQuery.isFetching}
+        >
+          <RefreshCw className="mr-2 h-4 w-4" /> Actualiser
+        </Button>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[1fr_400px]">
+        <div className="overflow-hidden rounded-lg border border-[var(--brand-hairline)]">
+          <table className="w-full text-sm">
+            <thead className="bg-[var(--brand-muted)] text-left text-xs uppercase tracking-wider text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3">De</th>
+                <th className="px-4 py-3">Sujet</th>
+                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3 w-20"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {messagesQuery.isLoading && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
+                    Chargement…
+                  </td>
+                </tr>
+              )}
+              {messagesQuery.isError && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-destructive">
+                    Échec du chargement.
+                  </td>
+                </tr>
+              )}
+              {messagesQuery.data?.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
+                    Aucun message pour le moment.
+                  </td>
+                </tr>
+              )}
+              {messagesQuery.data?.map((msg) => (
+                <tr
+                  key={msg.id}
+                  className={`cursor-pointer border-t border-[var(--brand-hairline)] transition-colors hover:bg-[var(--brand-muted)]/50 ${
+                    selectedMessage?.id === msg.id ? "bg-[var(--brand-muted)]/50" : ""
+                  } ${!msg.read ? "font-semibold" : ""}`}
+                  onClick={() => handleMessageClick(msg)}
+                >
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      {!msg.read && (
+                        <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+                      )}
+                      <span className="truncate">{msg.name}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">{msg.email}</div>
+                  </td>
+                  <td className="px-4 py-3 truncate text-muted-foreground">
+                    {msg.subject || "(sans sujet)"}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    {formatDate(msg.created_at)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPendingDelete({ id: msg.id, name: msg.name });
+                        }}
+                        aria-label="Supprimer"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="rounded-lg border border-[var(--brand-hairline)] bg-[var(--brand-muted)]/40 p-5">
+          {selectedMessage ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold uppercase tracking-wider">
+                  Message de {selectedMessage.name}
+                </h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedMessage(null)}
+                >
+                  Fermer
+                </Button>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div>
+                  <span className="text-muted-foreground">De : </span>
+                  <span className="font-medium">{selectedMessage.name}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Email : </span>
+                  <a
+                    href={`mailto:${selectedMessage.email}`}
+                    className="text-[var(--brand-accent)] hover:underline"
+                  >
+                    {selectedMessage.email}
+                  </a>
+                </div>
+                {selectedMessage.subject && (
+                  <div>
+                    <span className="text-muted-foreground">Sujet : </span>
+                    <span className="font-medium">{selectedMessage.subject}</span>
+                  </div>
+                )}
+                <div>
+                  <span className="text-muted-foreground">Date : </span>
+                  <span>{formatDate(selectedMessage.created_at)}</span>
+                </div>
+              </div>
+              <div className="border-t border-[var(--brand-hairline)] pt-4">
+                <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                  {selectedMessage.message}
+                </p>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    window.location.href = `mailto:${selectedMessage.email}`;
+                  }}
+                >
+                  <Mail className="mr-2 h-4 w-4" /> Répondre
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setPendingDelete({
+                      id: selectedMessage.id,
+                      name: selectedMessage.name,
+                    })
+                  }
+                  className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" /> Supprimer
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              <p>Sélectionnez un message pour le lire.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <ConfirmDeleteDialog
+        open={pendingDelete !== null}
+        title={`Supprimer le message de "${pendingDelete?.name ?? ""}" ?`}
+        description="Cette action est irréversible."
+        loading={deleteMut.isPending}
+        onConfirm={() => {
+          if (pendingDelete) deleteMut.mutate(pendingDelete.id);
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

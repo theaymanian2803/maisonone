@@ -104,3 +104,13 @@ export type Review = {
   approved: boolean;
   created_at: number;
 };
+
+export type ContactMessage = {
+  id: string;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  read: boolean;
+  created_at: number;
+};

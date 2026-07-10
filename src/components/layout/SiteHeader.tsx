@@ -83,6 +83,17 @@ export function SiteHeader() {
     setMobileOpen(false);
   }, [location.pathname]);
 
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.classList.add("menu-open");
+    } else {
+      document.body.classList.remove("menu-open");
+    }
+    return () => {
+      document.body.classList.remove("menu-open");
+    };
+  }, [mobileOpen]);
+
   const isShop = location.pathname === "/shop";
 
   return (
@@ -242,74 +253,124 @@ export function SiteHeader() {
 
       <div
         className={cn(
-          "fixed inset-0 top-[73px] z-40 bg-background lg:hidden transition-transform duration-300",
-          mobileOpen ? "translate-x-0" : "translate-x-full",
+          "fixed inset-0 top-[73px] z-50 lg:hidden transition-all duration-300",
+          mobileOpen ? "visible" : "invisible pointer-events-none",
         )}
       >
-        <nav className="flex flex-col overflow-y-auto px-4 pb-20 pt-6">
-          {NAV_ITEMS.map((item) => (
-            <div key={item.label}>
-              <Link
-                to={item.to}
-                className="block border-b border-[var(--brand-hairline)] py-4 text-sm font-semibold tracking-[0.15em] uppercase text-foreground"
-                onClick={() => setMobileOpen(false)}
-              >
-                {item.label}
-              </Link>
-              {item.hasMega && (
-                <div className="space-y-1 pb-2 pt-1">
+        <div
+          className={cn(
+            "absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300",
+            mobileOpen ? "opacity-100" : "opacity-0",
+          )}
+          onClick={() => setMobileOpen(false)}
+        />
+        <div
+          className={cn(
+            "absolute inset-x-0 top-0 max-h-[calc(100dvh-73px)] overflow-y-auto bg-background shadow-2xl transition-transform duration-300 ease-out",
+            mobileOpen ? "translate-y-0" : "-translate-y-full",
+          )}
+        >
+          <nav className="flex flex-col px-6 pb-10 pt-8">
+            <div className="space-y-1">
+              {NAV_ITEMS.map((item) => (
+                <div key={item.label}>
                   <Link
-                    to="/shop"
-                    className="block py-2 pl-6 text-xs font-medium tracking-wider text-muted-foreground hover:text-foreground"
+                    to={item.to}
+                    className="block border-b border-[var(--brand-hairline)] py-5 text-[15px] font-semibold tracking-[0.15em] uppercase text-foreground transition-colors hover:text-[var(--brand-accent)]"
                     onClick={() => setMobileOpen(false)}
                   >
-                    Voir tout
+                    {item.label}
                   </Link>
-                  {categories.map((c) => (
-                    <Link
-                      key={c.slug}
-                      to="/shop"
-                      search={{ category: c.slug }}
-                      className="block py-2 pl-6 text-xs font-medium tracking-wider text-muted-foreground hover:text-foreground"
-                      onClick={() => setMobileOpen(false)}
-                    >
-                      {c.label}
-                    </Link>
-                  ))}
+                  {item.hasMega && (
+                    <div className="space-y-0.5 border-b border-[var(--brand-hairline)] pb-3 pt-2">
+                      <Link
+                        to="/shop"
+                        className="flex items-center gap-2 py-2.5 pl-4 text-[13px] font-medium tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        <span className="h-1 w-1 rounded-full bg-[var(--brand-accent)]" />
+                        Voir tout
+                      </Link>
+                      {categories.map((c) => (
+                        <Link
+                          key={c.slug}
+                          to="/shop"
+                          search={{ category: c.slug }}
+                          className="flex items-center gap-2 py-2.5 pl-4 text-[13px] font-medium tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+                          onClick={() => setMobileOpen(false)}
+                        >
+                          <span className="h-1 w-1 rounded-full bg-current opacity-40" />
+                          {c.label}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
                 </div>
+              ))}
+            </div>
+
+            <div className="mt-8 border-t border-[var(--brand-hairline)] pt-8">
+              {customer ? (
+                <div className="space-y-4">
+                  <p className="text-[11px] font-semibold tracking-[0.2em] uppercase text-muted-foreground">
+                    {customer.name}
+                  </p>
+                  <Link
+                    to="/account"
+                    className="flex items-center gap-3 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    <Package size={16} /> Mes commandes
+                  </Link>
+                  <button
+                    className="flex items-center gap-3 text-sm text-destructive transition-colors hover:text-destructive"
+                    onClick={() => {
+                      logout();
+                      toast.success("Déconnecté");
+                      setMobileOpen(false);
+                    }}
+                  >
+                    <LogOut size={16} /> Déconnexion
+                  </button>
+                </div>
+              ) : (
+                <Link
+                  to="/login"
+                  className="flex items-center gap-3 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  <User size={16} /> Connexion / Inscription
+                </Link>
               )}
             </div>
-          ))}
-          {customer ? (
-            <>
-              <Link
-                to="/account"
-                className="flex items-center gap-3 border-t border-[var(--brand-hairline)] pt-6 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => setMobileOpen(false)}
-              >
-                <Package size={14} /> Mes commandes
-              </Link>
-              <button
-                className="mt-3 flex items-center gap-3 text-xs text-destructive hover:text-destructive"
-                onClick={() => {
-                  logout();
-                  toast.success("Déconnecté");
-                  setMobileOpen(false);
-                }}
-              >
-                <LogOut size={14} /> Déconnexion
-              </button>
-            </>
-          ) : (
-            <Link
-              to="/login"
-              className="mt-6 flex items-center gap-3 border-t border-[var(--brand-hairline)] pt-6 text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => setMobileOpen(false)}
-            >
-              <User size={14} /> Connexion / Inscription
-            </Link>
-          )}
-        </nav>
+
+            <div className="mt-8 border-t border-[var(--brand-hairline)] pt-8">
+              <div className="flex items-center gap-5">
+                <a
+                  href="https://instagram.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                  aria-label="Instagram"
+                >
+                  <Instagram size={18} />
+                </a>
+                <a
+                  href="https://youtube.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                  aria-label="YouTube"
+                >
+                  <Youtube size={18} />
+                </a>
+              </div>
+              <p className="mt-4 text-[11px] tracking-wider text-muted-foreground">
+                Livraison offerte dès 250$
+              </p>
+            </div>
+          </nav>
+        </div>
       </div>
 
       {megaOpen && (
@@ -330,7 +391,7 @@ export function TopBar() {
           <span className="hidden items-center gap-1.5 sm:inline-flex">+1 (555) 010 2040</span>
           <span className="hidden items-center gap-1.5 md:inline-flex">hello@maison.co</span>
         </div>
-        <p className="text-center opacity-90">
+        <p className="min-w-0 flex-1 truncate px-2 text-center opacity-90 sm:flex-none sm:px-0">
           Livraison offerte dès 250$ · Nouveautés chaque semaine
         </p>
         <div className="hidden gap-4 md:flex">

@@ -1,10 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 
 function getEnvValue(key: string): string | undefined {
-  const cfEnv = (globalThis as Record<string, Record<string, string> | undefined>).__env__;
-  const cfVal = cfEnv?.[key];
-  const procVal = process.env[key];
-  return cfVal ?? procVal;
+  return process.env[key];
 }
 
 export const debugEnv = createServerFn({ method: "GET" }).handler(
@@ -29,9 +26,7 @@ export const debugEnv = createServerFn({ method: "GET" }).handler(
         result[key] = "(not set)";
       }
     }
-    const cfEnv = (globalThis as Record<string, Record<string, string> | undefined>).__env__;
-    result["__has_cf_env__"] = cfEnv ? "yes" : "no";
-    result["__cf_env_keys__"] = cfEnv ? Object.keys(cfEnv).join(", ") : "(none)";
+    result["__runtime__"] = "vercel";
     return result;
   },
 );
